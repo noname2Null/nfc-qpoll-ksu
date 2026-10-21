@@ -1,7 +1,7 @@
 // Runs inside com.android.nfc via frida-gadget (loaded by Zygisk module nfc-qpoll).
 // NCI 0x71 is Huawei "Q-Poll": NFA does not know it, so translate at the NCI
 // boundary: outgoing RF_DISCOVER tech 0x00 -> 0x71, incoming 0x71 -> 0x00.
-var CANDIDATES = ["libsn100nfc-nci.so", "libnfc_nci_jni.so"];
+var CANDIDATES = ["libsn100nfc-nci.so", "libnfc_nci_jni.so","libsn100nfc-nci-v1.so"];
 var LOG = "/data/user/0/com.android.nfc/files/hook.log";
 var MAX_DUMP = 60;
 var dumped = 0;
