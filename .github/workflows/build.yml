@@ -1,0 +1,84 @@
+name: build-nfc-qpoll
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'gadget/hook.js'
+      - 'jni/**'
+
+env:
+  ANDROID_HOME: /home/runner/android-sdk
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Android SDK + NDK r25c
+        run: |
+          set -e
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -sSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --install "platforms;android-34" "ndk;25.2.9519653"
+
+      - name: Download frida-gadget 17.24.3 (android-arm64)
+        run: python3 gadget/get_gadget.py
+
+      - name: Compile Zygisk module
+        run: |
+          set -e
+          CLANG="$ANDROID_HOME/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
+          mkdir -p build/zygisk
+          "$CLANG" --target=aarch64-linux-android21 -shared -fPIC -O2 \
+              -fno-exceptions -fno-rtti -static-libstdc++ \
+              -o build/zygisk/arm64-v8a.so jni/module.cpp -llog
+
+      - name: Assemble module and pack zip
+        run: |
+          set -e
+          MOD=build/module
+          rm -rf "$MOD"
+          mkdir -p "$MOD/zygisk" "$MOD/system/lib64"
+          cp module/module.prop module/service.sh "$MOD/"
+          cp build/zygisk/arm64-v8a.so "$MOD/zygisk/"
+          cp gadget/libgadget.so "$MOD/system/lib64/"
+          cp gadget/libgadget.config.so "$MOD/system/lib64/"
+          cp gadget/hook.js "$MOD/system/lib64/nfcq-hook.js"
+          cd "$MOD"
+          zip -r9 ../nfc-qpoll.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfc-qpoll-ksu
+          path: build/nfc-qpoll.zip
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nfc-qpoll-v1.0
+          name: nfc-qpoll v1.0 (xaga/SN100U adapted)
+          body: |
+            KernelSU Zygisk 模块：NXP Q-Poll 0x71 桥接，驱动华为 552x768 四色墨水屏壳。
+            本 Fork 适配：libsn100nfc-nci-v1.so（红米 Note 11T Pro / SN100U / MIUI 14）。
+            刷入后重启生效；启用期间普通 NFC-A 标签不可用，需日常 NFC 时禁用模块并重启。
+          files: build/nfc-qpoll.zip
+          fail_on_unmatched_files: true
