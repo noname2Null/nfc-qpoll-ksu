@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Set up Android SDK + NDK r25c
+      - name: Set up Android SDK command line tools
         run: |
           set -e
           mkdir -p "$ANDROID_HOME/cmdline-tools"
@@ -37,6 +37,11 @@ jobs:
           unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools"
           mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      - name: Install platform and NDK r25c
+        run: |
+          set -e
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager --sdk_root="$ANDROID_HOME" --install "platforms;android-34" "ndk;25.2.9519653"
 
       - name: Download frida-gadget 17.24.3 (android-arm64)
